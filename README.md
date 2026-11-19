@@ -25,6 +25,7 @@ The reason why this library has been developed is because all of the currently e
 - [x] The cascade files are directly embedded into the generated binary file
 - [x] [Pupils/eyes localization](#pupils--eyes-localization)
 - [x] [Facial landmark points detection](#facial-landmark-points-detection)
+- [x] [Face tracking across frames](#face-tracking-across-frames)
 - [x] **[Webassembly support 🎉](#wasm-webassembly-support-)**
 
 ### Todo
@@ -58,6 +59,37 @@ Check out this real time demo: https://github.com/esimov/pigo/tree/master/exampl
 Check out this real time demo: https://github.com/esimov/pigo/tree/master/examples/facial_landmark
 
 ![flp_example](https://user-images.githubusercontent.com/883386/66802771-3b0cc880-ef26-11e9-9ee3-7e9e981ef3f7.png)
+
+## Face tracking across frames
+The cascade detector answers "is there a face in this frame", so on video the same face is a
+new detection on every frame. `pigo.Tracker` turns those per-frame detections into stable
+trajectories: it predicts each track's position and size from its velocity, matches all
+tracks against all detections with a global (Hungarian) assignment, and keeps a track alive
+through a configurable number of missed frames.
+
+```go
+tracker, err := pigo.NewTracker(pigo.DefaultTrackerConfig())
+// ...
+res, err := tracker.Update(pigo.Frame{
+	Timestamp:  time.Now(), // must increase strictly between frames
+	Width:      cols,       // optional; rescaled automatically on resolution switch
+	Height:     rows,
+	Detections: []pigo.TrackDetection{{
+		Rect:       pigo.DetectionRect(dets[0]), // from ClusterDetections
+		Confidence: 0.9,                         // normalized to [0, 1]
+	}},
+})
+for _, track := range res.Tracks {
+	// track.ID is stable while the face stays in frame, even across short
+	// occlusions (track.Coasting) and resolution changes.
+}
+```
+
+`TrackerConfig` exposes the matching threshold, the frame/time grace for missing
+detections, the prediction horizon, velocity smoothing and hard caps on detections and
+tracks. Invalid input (regressed or duplicate timestamps, empty is fine, malformed
+rectangles, too many candidates) is reported as a distinct error and leaves the tracker
+state untouched, so the frame can be retried.
 
 ## Install
 Install Go, set your `GOPATH`, and make sure `$GOPATH/bin` is on your `PATH`.
